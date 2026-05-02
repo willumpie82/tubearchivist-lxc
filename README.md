@@ -45,12 +45,25 @@ sudo ./tubearchivist_setup_ubuntu.sh
 
 ## Updating TubeArchivist
 
+**Note**: The default branch for the TubeArchivist fork is `develop`, not `master`.
+
 ### Pull Latest from Official Repository
 
 ```bash
 cd tubearchivist
-git fetch upstream  # if upstream remote exists
-git pull origin develop  # or track develop branch
+# Add upstream if not present
+git remote add upstream https://github.com/tubearchivist/tubearchivist.git
+git fetch upstream develop
+git pull upstream develop
+cd ..
+```
+
+### Track Develop Branch
+
+```bash
+cd tubearchivist
+git checkout develop
+git pull origin develop
 cd ..
 ```
 
@@ -82,43 +95,75 @@ To contribute fixes back to the official TubeArchivist project:
 
 ```bash
 cd tubearchivist
-git checkout develop
-git pull upstream develop
-# Apply your fix
-git push origin <your-branch>
-# Create PR on GitHub
+# Create feature branch from official develop
+git fetch upstream develop
+git checkout -b fix/your-fix upstream/develop
+# Apply and test your fix
+git push origin fix/your-fix
+# Create PR against tubearchivist/tubearchivist:develop
 ```
 
-### Local Development
+### Local Development (Track Develop)
 
-For local testing and modifications:
+For local testing and modifications on the develop branch:
 
 ```bash
 cd tubearchivist
+git checkout develop
+git pull origin develop
 # Make your changes
 git add <files>
 git commit -m "description"
 # Test thoroughly
+git push origin develop
+```
+
+### Update Submodule to Latest Develop
+
+```bash
+cd tubearchivist
+git fetch origin develop
+git pull origin develop
+cd ..
+git add tubearchivist
+git commit -m "Update TubeArchivist submodule to latest develop"
+git push origin master  # Push reference update to tubearchivist-lxc
 ```
 
 ## Submodule Management
 
-### Add Upstream Remote (for official repo tracking)
+### Add Upstream Remote (Track Official Repo)
 
 ```bash
 cd tubearchivist
 git remote add upstream https://github.com/tubearchivist/tubearchivist.git
-git fetch upstream
+git fetch upstream develop
+# Now you can track official changes
 ```
 
-### Update Submodule Commit Reference
+### Update Submodule to Latest Develop
+
+The TubeArchivist fork defaults to the `develop` branch (matching official repo):
 
 ```bash
 cd tubearchivist
-git checkout <branch>
+git pull origin develop  # pulls your fork's develop
+# or
+git pull upstream develop  # pulls official develop directly
 cd ..
 git add tubearchivist
-git commit -m "Update TubeArchivist submodule to <commit-hash>"
+git commit -m "Update TubeArchivist submodule"
+git push origin master
+```
+
+### Switch Submodule Branch
+
+```bash
+cd tubearchivist
+git checkout develop
+cd ..
+git add tubearchivist
+git commit -m "Submodule: switch to develop branch"
 git push
 ```
 
