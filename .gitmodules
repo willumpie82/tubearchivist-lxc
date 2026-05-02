@@ -1,0 +1,3 @@
+[submodule "tubearchivist"]
+	path = tubearchivist
+	url = https://github.com/willumpie82/tubearchivist.git
