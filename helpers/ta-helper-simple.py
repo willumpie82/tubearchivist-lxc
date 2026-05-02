@@ -8,6 +8,15 @@ import subprocess
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+
+# Load secrets from file
+SECRETS_FILE = "/etc/ta-helper/secrets.env"
+if os.path.exists(SECRETS_FILE):
+    load_dotenv(SECRETS_FILE)
+else:
+    # Fallback to environment variables if secrets file doesn't exist
+    pass
 
 SOURCE_FOLDER = "/mnt/media/arr/tubearchivist"
 TARGET_FOLDER = "/mnt/media/library/youtube"
@@ -16,6 +25,8 @@ ES_URL = "http://localhost:9200/ta_video/_search"
 TA_API_URL = "http://localhost/api/v1/video"
 TA_USERNAME = os.environ.get("TA_USERNAME", "admin")
 TA_PASSWORD = os.environ.get("TA_PASSWORD", "changeme")
+JF_API_URL = os.environ.get("JF_API_URL", "http://localhost:8081")
+JF_API_KEY = os.environ.get("JF_API_KEY", "")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -57,6 +68,34 @@ def mark_video_as_watched(video_id):
             return False
     except Exception as e:
         logger.error(f"Error marking {video_id} as watched: {e}")
+        return False
+
+def trigger_jellyfin_refresh():
+    """Trigger Jellyfin library refresh for YouTube folder"""
+    if not JF_API_KEY:
+        logger.debug("No Jellyfin API key configured, skipping library refresh")
+        return False
+    
+    try:
+        # Trigger refresh via Jellyfin API
+        url = f"{JF_API_URL}/emby/Library/Refresh?api_key={JF_API_KEY}"
+        
+        cmd = [
+            "curl", "-s", "-X", "POST",
+            "-H", "Content-Type: application/json",
+            url
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, timeout=10)
+        
+        if result.returncode == 0:
+            logger.info("Triggered Jellyfin library refresh")
+            return True
+        else:
+            logger.warning(f"Failed to trigger Jellyfin refresh: {result.stderr.decode()}")
+            return False
+    except Exception as e:
+        logger.error(f"Error triggering Jellyfin refresh: {e}")
         return False
 
 def create_nfo_file(nfo_path, video_id, title, channel_name, description, upload_date):
@@ -156,7 +195,12 @@ def main():
             except Exception as e:
                 logger.error(f"Error creating link for {safe_title}: {e}")
         
-        logger.info(f"Completed: {count_new} new, {count_existing} existing, {count_marked} marked as watched")
+        logger.info(f"Completed: {count_new} new, {count_existing} existing, {count_marked} as watched")
+        
+        # Trigger Jellyfin library refresh if new videos were added
+        if count_new > 0:
+            trigger_jellyfin_refresh()
+        
         return 0
     
     except Exception as e:

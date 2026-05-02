@@ -39,6 +39,7 @@ Tier 2: Indexed/Organized Storage
 - Hardlinks (not copies) - save storage space
 - Channel-based organization
 - Jellyfin NFO format compatibility
+- Auto-refresh Jellyfin library when new videos detected
 - Logs to `/var/log/ta-helper.log`
 
 **Execution**:
@@ -46,23 +47,60 @@ Tier 2: Indexed/Organized Storage
 - Service: `ta-helper.service`
 - Timer: `ta-helper.timer`
 
-**Config**:
+**Configuration Files**:
+
+1. **Code Config** (`ta-helper-simple.py`):
 ```bash
 SOURCE_FOLDER="/mnt/media/arr/tubearchivist"    # Raw archive
 TARGET_FOLDER="/mnt/media/library/youtube"      # Indexed library
 ES_URL="http://localhost:9200/ta_video/_search" # Elasticsearch
 ```
 
+2. **Secrets** (`/etc/ta-helper/secrets.env`):
+```bash
+# TubeArchivist credentials
+TA_USERNAME=admin
+TA_PASSWORD=your_password
+
+# Jellyfin API (for auto-refresh)
+JF_API_URL=http://localhost:8081
+JF_API_KEY=your_jellyfin_api_key
+```
+
+**Secrets Setup**:
+```bash
+# Copy template to /etc/ta-helper/
+sudo cp helpers/secrets.env.template /etc/ta-helper/secrets.env
+sudo chmod 600 /etc/ta-helper/secrets.env
+sudo nano /etc/ta-helper/secrets.env
+# Fill in your TA credentials and Jellyfin API key
+```
+
+Get Jellyfin API key from: **Settings > Dashboard > API Keys**
+
 **Use Cases**:
 - ✅ Create organized library view in Jellyfin
 - ✅ Automatic hardlink management
 - ✅ NFO metadata generation
+- ✅ Automatic Jellyfin library refresh on new videos
 - ✅ Filesystem-based approach (no plugin needed)
+
+**Jellyfin Auto-Refresh**:
+When new videos are added to the library:
+1. ta-helper detects new hardlinks created
+2. Automatically calls Jellyfin API `/Library/Refresh`
+3. Jellyfin scans the new videos
+4. New videos appear in Jellyfin within seconds (instead of waiting for manual scan)
+
+Requirements: `JF_API_KEY` in `/etc/ta-helper/secrets.env`
 
 **Commands**:
 ```bash
-# View logs
+# View logs (includes Jellyfin refresh messages)
 journalctl -u ta-helper.service -f
+
+# Test Jellyfin refresh manually
+curl -s -X POST "http://localhost:8081/emby/Library/Refresh?api_key=YOUR_API_KEY"
 
 # Disable if not using
 systemctl disable ta-helper.timer

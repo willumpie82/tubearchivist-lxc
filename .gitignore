@@ -24,6 +24,7 @@ build/
 .env
 .env.local
 .env.*.local
+/etc/ta-helper/secrets.env
 
 # OS
 Thumbs.db
