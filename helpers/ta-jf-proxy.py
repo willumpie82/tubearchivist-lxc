@@ -53,15 +53,62 @@ def query_elasticsearch(es_index, search_field, search_value):
         return None
 
 def rewrite_urls(data, path=""):
-    """Keep relative URLs for Jellyfin plugin compatibility
+    """Enrich TA metadata for Jellyfin with standardized fields
     
-    Plugin behavior: TubeArchivistUrl + url
-    So we return TA's original relative URLs: /cache/channels/xxx_thumb.jpg
-    Jellyfin then constructs: http://192.168.1.186 + /cache/... = http://192.168.1.186/cache/...
+    Jellyfin expects certain fields to properly display metadata.
+    We extract from TA response and add/reformat for Jellyfin compatibility.
     """
-    # Return data as-is - no rewriting needed
-    # Jellyfin plugin will construct full URLs via its TubeArchivistUrl setting
-    logger.debug(f"[INFO] Returning TA metadata with original relative image URLs")
+    if isinstance(data, dict):
+        # For video responses
+        if "title" in data:
+            # Ensure key fields are present
+            enriched = data.copy()
+            
+            # Jellyfin-friendly duration (in seconds)
+            if "player" in data and "duration" in data["player"]:
+                enriched["duration"] = data["player"]["duration"]
+                enriched["duration_str"] = data["player"].get("duration_str", "")
+            
+            # Ensure published/aired date is present
+            if "published" in data and "date_published" not in enriched:
+                try:
+                    pub_date = data["published"].split("T")[0]  # YYYY-MM-DD
+                    enriched["date_published"] = pub_date
+                except:
+                    pass
+            
+            # Extract channel info if available
+            if "channel" in data and isinstance(data["channel"], dict):
+                enriched["series"] = data["channel"].get("channel_name", "")
+                enriched["studio"] = data["channel"].get("channel_name", "")
+            
+            # Ensure description is available
+            if "description" not in enriched and "comments" not in enriched:
+                enriched["description"] = data.get("description", "")
+            
+            # Add genre
+            if "genre" not in enriched:
+                enriched["genre"] = "YouTube"
+            
+            logger.debug(f"Enriched video metadata with fields: {list(enriched.keys())}")
+            return enriched
+        
+        # For channel responses  
+        if "channel_name" in data:
+            enriched = data.copy()
+            
+            # Standardize channel name fields
+            if "name" not in enriched:
+                enriched["name"] = data.get("channel_name", "")
+            
+            # Add series info
+            if "series" not in enriched:
+                enriched["series"] = data.get("channel_name", "")
+            
+            logger.debug(f"Enriched channel metadata: {data.get('channel_name')}")
+            return enriched
+    
+    # Return data as-is for non-dict responses
     return data
 
 def proxy_to_ta(endpoint):
@@ -102,8 +149,18 @@ def get_channel(name):
         logger.error(f"[ERROR] Failed to get channel data for {cid}")
         return jsonify(result), 500
     
-    logger.debug(f"[RESPONSE] Returning {len(json.dumps(result))} bytes with rewritten image URLs")
-    return jsonify(result)
+    # Enrich with Jellyfin-friendly metadata
+    enriched_result = rewrite_urls(result, "channel")
+    
+    # Add Jellyfin collection fields
+    if isinstance(enriched_result, dict):
+        if "genre" not in enriched_result:
+            enriched_result["genre"] = "YouTube"
+        if "type" not in enriched_result:
+            enriched_result["type"] = "Series"
+    
+    logger.debug(f"[RESPONSE] Returning {len(json.dumps(enriched_result))} bytes with enriched metadata")
+    return jsonify(enriched_result)
 
 @app.route("/api/video/<path:path>/", methods=["GET"])
 def get_video(path):
@@ -122,8 +179,23 @@ def get_video(path):
         logger.error(f"[ERROR] Failed to get video data for {vid}")
         return jsonify(result), 500
     
-    logger.debug(f"[RESPONSE] Returning {len(json.dumps(result))} bytes with rewritten image URLs")
-    return jsonify(result)
+    # Enrich with Jellyfin-friendly metadata
+    enriched_result = rewrite_urls(result, "video")
+    
+    # Add extra Jellyfin fields
+    if isinstance(enriched_result, dict):
+        # Ensure episode count/season info
+        if "episode" not in enriched_result:
+            enriched_result["episode"] = 1
+        if "season" not in enriched_result and "published" in enriched_result:
+            try:
+                year = enriched_result["published"].split("-")[0]
+                enriched_result["season"] = int(year)
+            except:
+                enriched_result["season"] = 1
+    
+    logger.debug(f"[RESPONSE] Returning {len(json.dumps(enriched_result))} bytes with enriched metadata")
+    return jsonify(enriched_result)
 
 @app.route("/debug/", methods=["GET"])
 def debug_info():

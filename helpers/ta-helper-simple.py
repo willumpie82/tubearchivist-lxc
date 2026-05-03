@@ -107,23 +107,67 @@ def trigger_jellyfin_refresh():
         logger.debug(f"Jellyfin refresh skipped: {e}")
         return False
 
-def create_nfo_file(nfo_path, video_id, title, channel_name, description, upload_date):
+def create_nfo_file(nfo_path, video_id, title, channel_name, description, upload_date, duration=None):
     """Create NFO metadata file for Jellyfin"""
     try:
-        root = ET.Element("video")
+        root = ET.Element("episodedetails")
         
         title_elem = ET.SubElement(root, "title")
         title_elem.text = title
         
         plot_elem = ET.SubElement(root, "plot")
-        plot_elem.text = f"Channel: {channel_name}\n\n{description}" if description else f"Channel: {channel_name}"
+        plot_elem.text = description if description else f"Channel: {channel_name}"
         
+        # Add year from upload_date
+        if upload_date:
+            try:
+                year = upload_date.split("-")[0]
+                year_elem = ET.SubElement(root, "year")
+                year_elem.text = year
+            except:
+                pass
+        
+        # Add aired date
         aired_elem = ET.SubElement(root, "aired")
         aired_elem.text = upload_date
         
         premiered_elem = ET.SubElement(root, "premiered")
         premiered_elem.text = upload_date
         
+        # Add studio/channel
+        studio_elem = ET.SubElement(root, "studio")
+        studio_elem.text = channel_name
+        
+        # Add series name as channel
+        series_elem = ET.SubElement(root, "series")
+        series_elem.text = channel_name
+        
+        # Add season (can be year-based)
+        if upload_date:
+            try:
+                season_elem = ET.SubElement(root, "season")
+                season_elem.text = upload_date.split("-")[0]  # Year as season
+            except:
+                pass
+        
+        # Add episode number (can be video_id based)
+        episode_elem = ET.SubElement(root, "episode")
+        episode_elem.text = "1"
+        
+        # Add runtime if available
+        if duration:
+            runtime_elem = ET.SubElement(root, "runtime")
+            runtime_elem.text = str(int(duration // 60))  # Convert to minutes
+        
+        # Add genre
+        genre_elem = ET.SubElement(root, "genre")
+        genre_elem.text = "YouTube"
+        
+        # Add director as channel
+        director_elem = ET.SubElement(root, "director")
+        director_elem.text = channel_name
+        
+        # Add unique ID
         ta_id_elem = ET.SubElement(root, "uniqueid")
         ta_id_elem.set("type", "tubearchivist")
         ta_id_elem.text = video_id
