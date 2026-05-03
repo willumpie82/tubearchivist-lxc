@@ -89,13 +89,22 @@ def trigger_jellyfin_refresh():
         result = subprocess.run(cmd, capture_output=True, timeout=10)
         
         if result.returncode == 0:
-            logger.info("Triggered Jellyfin library refresh")
-            return True
+            response = result.stdout.decode().strip()
+            # 404 means endpoint doesn't exist, other errors are connection issues
+            if "404" in response or "Not Found" in response:
+                logger.debug(f"Jellyfin refresh endpoint not found (Jellyfin may not be running)")
+                return False
+            elif result.returncode == 0:
+                logger.info("Triggered Jellyfin library refresh")
+                return True
         else:
-            logger.warning(f"Failed to trigger Jellyfin refresh: {result.stderr.decode()}")
+            logger.debug(f"Jellyfin not available (connection refused or timeout)")
             return False
+    except subprocess.TimeoutExpired:
+        logger.debug("Jellyfin refresh timed out (server may be unavailable)")
+        return False
     except Exception as e:
-        logger.error(f"Error triggering Jellyfin refresh: {e}")
+        logger.debug(f"Jellyfin refresh skipped: {e}")
         return False
 
 def create_nfo_file(nfo_path, video_id, title, channel_name, description, upload_date):
